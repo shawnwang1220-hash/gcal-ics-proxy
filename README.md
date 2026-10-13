@@ -26,13 +26,19 @@ Google 日历 —(私密 ICS)→ Cloudflare 边缘 —→ 你的地址 —→ iP
 
 ## 部署（Pages 路线，推荐）
 
-一条命令部署（需要 [wrangler](https://developers.cloudflare.com/workers/wrangler/install-and-update/) 和 Cloudflare 账号）：
+需要 [wrangler](https://developers.cloudflare.com/workers/wrangler/install-and-update/) 和 Cloudflare 账号，三步：
 
 ```bash
+# 1. 建项目（只此一次）
+wrangler pages project create gcal-ics-proxy --production-branch=main
+
+# 2. 设密钥——必须在下一次部署之前设好
+wrangler pages secret put GOOGLE_ICS --project-name=gcal-ics-proxy   # Google 日历私密 ICS 地址
+wrangler pages secret put PATH_KEY --project-name=gcal-ics-proxy     # 你自己生成的一串随机口令
+
+# 3. 部署
 wrangler pages deploy . --project-name=gcal-ics-proxy --branch=main
 ```
-
-然后设置变量（**值只会存进 Cloudflare，不进仓库**）：
 
 | 变量 | 值 | 说明 |
 |---|---|---|
@@ -40,10 +46,7 @@ wrangler pages deploy . --project-name=gcal-ics-proxy --branch=main
 | `PATH_KEY` | 你自己生成的一串随机口令 | 只有 `/<PATH_KEY>` 会返回日历数据 |
 | `CACHE_TTL` | 秒，可选，默认 300 | 边缘缓存时长 |
 
-```bash
-wrangler pages secret put GOOGLE_ICS --project-name=gcal-ics-proxy
-wrangler pages secret put PATH_KEY --project-name=gcal-ics-proxy
-```
+> **Pages 规则：设置或修改密钥后，必须重新部署（重跑第 3 步）才生效**——部署时才会把项目配置绑定进函数。
 
 部署完成后，你的日历地址是：
 
