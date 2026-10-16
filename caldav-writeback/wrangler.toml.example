@@ -1,0 +1,39 @@
+name = "gcal-caldav-writeback"
+main = "src/index.js"
+compatibility_date = "2024-01-01"
+
+# ── 存储绑定 ────────────────────────────────────────────────
+[[d1_databases]]
+binding = "DB"
+database_name = "caldav_db"
+database_id = "<your-database-id>"
+
+[[kv_namespaces]]
+binding = "KV"
+id = "<your-kv-id>"
+
+[[r2_buckets]]
+binding = "R2"
+bucket_name = "caldav-calendars"
+
+# ── CalDAV 登录凭据（iPhone 添加账户时填的用户名/密码）─────────
+[vars]
+USERNAME = "admin"
+PASSWORD = "changeme"
+BASE_URL = "https://gcal-caldav-writeback.<your-subdomain>.workers.dev"
+
+# ── 推送调度 ────────────────────────────────────────────────
+# 默认每 5 分钟扫一次未推送的事件。想更快就改成 "* * * * *"（每分钟）。
+# 注意：Cloudflare 免费版下 Cron 触发也计入请求次数（每天 10 万次上限）。
+[triggers]
+crons = ["*/5 * * * *"]
+
+# ── Google 凭据（一律用 wrangler secret 设置，不要写在这个文件里）──
+# npx wrangler secret put GOOGLE_CLIENT_ID
+# npx wrangler secret put GOOGLE_CLIENT_SECRET
+# npx wrangler secret put GOOGLE_REFRESH_TOKEN
+# npx wrangler secret put GOOGLE_CALENDAR_ID    # 目标日历 ID；推到主日历就填 primary
+# npx wrangler secret put PUSH_TOKEN            # 手动调 /push 的口令
+
+[observability]
+enabled = true

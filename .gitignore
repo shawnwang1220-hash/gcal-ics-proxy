@@ -1,5 +1,17 @@
+# 依赖
 node_modules/
+
+# Cloudflare
 .wrangler/
 .dev.vars
+
+# 环境变量与日志
+.env
 *.log
+
+# 由 example 复制出来的真实配置（含 database_id / KV id 等，不入库）
+caldav-writeback/wrangler.toml
+
+# 系统
 .DS_Store
+Thumbs.db

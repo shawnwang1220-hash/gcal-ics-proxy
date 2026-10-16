@@ -1,0 +1,30 @@
+{
+  "name": "gcal-caldav-writeback",
+  "version": "1.0.0",
+  "description": "Self-hosted CalDAV server on Cloudflare Workers that pushes newly created events one-way into Google Calendar",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "tail": "wrangler tail",
+    "auth": "node scripts/google-auth.js"
+  },
+  "keywords": [
+    "caldav",
+    "cloudflare-workers",
+    "google-calendar",
+    "d1",
+    "r2",
+    "ios"
+  ],
+  "license": "MIT",
+  "devDependencies": {
+    "dotenv": "^16.4.5",
+    "open": "^10.1.0",
+    "wrangler": "^4.0.0"
+  },
+  "dependencies": {
+    "ical.js": "^1.5.0"
+  }
+}

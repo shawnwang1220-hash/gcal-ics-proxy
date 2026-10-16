@@ -1,94 +1,65 @@
-# gcal-ics-proxy
+# gcal-bridge
 
-把 Google 日历的私密 ICS 地址通过 Cloudflare 边缘代理出去，让**国内网络下的 iPhone 原生日历**能直接订阅 Google 日历。
+让国内网络下的 **iPhone 自带「日历」**，既能**看到** Google 上的日程，也能把**新建**的日程**写回** Google。
 
-零 OAuth、零域名成本、一条私密 ICS 地址即可用。
+不需要任何第三方 App。两个子项目都跑在 Cloudflare 上，零服务器、零成本。
 
-## 为什么需要它
+## 两个子项目，解决两件不同的事
 
-iOS「设置 → 日历 → 账户 → Google」底层走 CalDAV，端点在 Google 自有域名（`*.googleapis.com` / `*.googleusercontent.com`），国内直连不通，同步必然失败。
+| 子项目 | 方向 | 跑在 | iPhone 上表现为 |
+|---|---|---|---|
+| [`ics-proxy`](./ics-proxy) | Google → iPhone | Cloudflare **Pages** | 一本**只读订阅日历** |
+| [`caldav-writeback`](./caldav-writeback) | iPhone → Google | Cloudflare **Workers** + D1 + R2 | 一个**可写 CalDAV 账户** |
 
-常见的「套娃」思路——把 Google ICS 订阅到 iCloud 或 Outlook——不成立：**日历订阅是拉模式，中间层只存地址，真正下载内容的仍是最终客户端**，套一个订阅型中间层等于套了个空壳。要成立，中间层必须「帮你抓」：gcal-ics-proxy 在 Cloudflare 边缘抓取 Google 私密 ICS，再以一个国内可达的地址serve给手机。
+**为什么是两个而不是一个**：iOS 的日历订阅（ICS / webcal）协议**本身是只读的**，写不回去 —— 这不是加个功能能解决的。所以「看」和「写」必须走两条不同的协议：看用 ICS 订阅，写用 CalDAV。两者**互补**，都要部署，谁也不替代谁。
 
-## 工作原理
-
-```
-Google 日历 —(私密 ICS)→ Cloudflare 边缘 —→ 你的地址 —→ iPhone 原生日历
-```
-
-## 国内可用性（实测）
-
-- **DNS 层**：用国内两个 DoH（阿里 `dns.alidns.com`、腾讯 `doh.pub`）交叉验证，`*.pages.dev` 均解析到真实 Cloudflare IP（172.66.0.0/16 段）；而 `*.workers.dev` 被投毒（阿里 DoH 返回 Facebook IP 段）。
-- **真机层**：2026-10-13，国内移动网络、不挂代理访问 `abc.pages.dev`，返回 Cloudflare 官方 404 页——网络层可达，SNI 未被拦。
-- 结论：**Pages 路线（`*.pages.dev`）国内可用，无需购买域名。**
-
-> DNS 干净只是第一关，SNI 阻断是另一关，且各运营商不同。上面的真机 404 实测确认两关都过。
-
-## 部署（Pages 路线，推荐）
-
-需要 [wrangler](https://developers.cloudflare.com/workers/wrangler/install-and-update/) 和 Cloudflare 账号（wrangler 4 要求 **Node.js ≥ 20**，用系统自带的旧版 node 会在安装或运行时报错），三步：
-
-```bash
-# 1. 建项目（只此一次）
-wrangler pages project create gcal-ics-proxy --production-branch=main
-
-# 2. 设密钥——必须在下一次部署之前设好
-wrangler pages secret put GOOGLE_ICS --project-name=gcal-ics-proxy   # Google 日历私密 ICS 地址
-wrangler pages secret put PATH_KEY --project-name=gcal-ics-proxy     # 你自己生成的一串随机口令
-
-# 3. 部署
-wrangler pages deploy . --project-name=gcal-ics-proxy --branch=main
-```
-
-| 变量 | 值 | 说明 |
-|---|---|---|
-| `GOOGLE_ICS` | Google 日历的私密 ICS 地址 | 等同密码，只放 Cloudflare secret |
-| `PATH_KEY` | 你自己生成的一串随机口令 | 只有 `/<PATH_KEY>` 会返回日历数据 |
-| `CACHE_TTL` | 秒，可选，默认 300 | 边缘缓存时长 |
-
-> **Pages 规则：设置或修改密钥后，必须重新部署（重跑第 3 步）才生效**——部署时才会把项目配置绑定进函数。
-
-部署完成后，你的日历地址是：
+## 装完之后，iPhone 自带日历里是这样
 
 ```
-https://gcal-ics-proxy.pages.dev/<PATH_KEY>
+iPhone 自带「日历」App
+├── iCloud               你原本的日历，不受影响
+├── Google（订阅）        只读 · 来自 ics-proxy · 看 Google 上已有的会
+└── CalDAV               可写 · 来自 caldav-writeback · 新建日程选它
 ```
 
-### 一键部署（Workers 路线，仅适合境外网络）
+建议把「设置 → 日历 → 默认日历」设为那本 CalDAV，之后新建的日程会自动落进去并推回 Google。注意这只影响**以后新建**的事件，不会移动已有事件。
 
-[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button.svg)](https://deploy.workers.cloudflare.com/?url=https://github.com/shawnwang1220-hash/gcal-ics-proxy)
+## 部署顺序
 
-注意：该按钮部署的是 Workers 版本，落在 `workers.dev` 域名——**国内 DNS 被投毒，不可达**。中国大陆用户请用上面的 Pages 路线。
+1. **先装 `ics-proxy`** → 见 [子项目文档](./ics-proxy)。十分钟，装完就能在手机上看到 Google 日程。
+2. **再装 `caldav-writeback`** → 见 [子项目文档](./caldav-writeback)。配置稍多：要建 D1 / R2、拿 Google OAuth refresh token。
+3. **最后在 iPhone 上**：设置 → 日历 → 默认日历 → 选 CalDAV。
 
-### 如果 Pages 域名也连不上
+## 共同的技术背景
 
-各运营商 SNI 策略不同。若真机订阅时一直转圈，回退方案：自定义域名 + 优选 IP。本项目不绑定任何特定域名，换域只需改订阅地址。
+两个子项目面对的是同一个根因，重复写两遍没必要，放这里：
 
-## iPhone 订阅步骤
+- iOS 添加 Google 账户走的是 **CalDAV**，端点在 `*.googleapis.com` / `*.googleusercontent.com`，国内直连不通，所以**原生路径是死的**。
+- Cloudflare 两个免费域名在国内的待遇完全不同（实测）：
 
-1. 设置 → 日历 → 账户 → 添加账户 → **其他**
-2. 选择 **添加已订阅日历**
-3. 粘贴 `https://gcal-ics-proxy.pages.dev/<PATH_KEY>`
-4. 完成。**不要挂代理**——挂了就说明没走通边缘代理，失去意义。
+  - `*.workers.dev` —— 阿里 DNS 解析到 `31.13.85.53`，**Facebook 的 IP 段，被投毒**，不可用
+  - `*.pages.dev` —— 阿里和腾讯两个国内 DoH 都返回真实 Cloudflare IP，**干净可用**
 
-订阅成功后，两点预期要提前知道，否则容易误以为坏了：
+- 所以 `ics-proxy` 能走 Pages 白嫖一个国内可达的域名；`caldav-writeback` 只能跑 Workers，**必须自己绑自定义域名**。
 
-- **只读**。订阅日历无法回写，手机上改不了 Google 的日程，它只是把事件镜像过来看。
-- **iOS 对订阅日历是懒拉取，没有推送**。Google 侧改了日程，手机上可能几分钟到几小时才出现——这是 iOS 的行为，不是同步失败。想立刻看到，进日历 App 下拉刷新即可强制拉取。
+## 目录
 
-## 安全设计
-
-- **路径口令保护**：路径不匹配一律返回 404 而非 403——403 等于告诉扫描者「这里有个东西但你没权限」。
-- **上游内容校验**：只接受含 `BEGIN:VCALENDAR` 的响应，防止把 Google 登录页 / 错误页写进手机日历。
-- **不收录**：响应带 `X-Robots-Tag: noindex`。
-- **凭证管理**：`GOOGLE_ICS` 与 `PATH_KEY` 只以 Cloudflare secret 形式存在，不进仓库、不进日志。
-
-## Roadmap
-
-- 国内连通性持续观测（不同运营商 / 时段）
-- 自定义域名部署文档化
-- 本地 Docker 备选方案（拉模式改推模式，iPhone 端为 iCloud 原生同步）
+```
+.
+├── ics-proxy/             Google → iPhone（只读订阅）
+│   ├── functions/         Pages Functions 入口
+│   ├── src/handler.js     核心逻辑（与 Workers 入口共用）
+│   ├── worker.js          Workers 入口
+│   ├── public/            Pages 静态输出目录（空）
+│   └── README.md          部署文档
+└── caldav-writeback/      iPhone → Google（新增回传）
+    ├── src/               CalDAV 服务端 + Google 推送模块
+    ├── scripts/           本地换 Google refresh token 的工具
+    └── README.md          部署文档
+```
 
 ## License
 
-MIT，见 [LICENSE](./LICENSE)。
+MIT，详见 [LICENSE](./LICENSE)。
+
+其中 `caldav-writeback` 的 CalDAV 服务端实现来自 [CF-Workers-CalDAV](https://github.com/onlca/CF-Workers-CalDAV)（Copyright (c) 2025 onlca，同样是 MIT）。
