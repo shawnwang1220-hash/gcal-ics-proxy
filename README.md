@@ -26,7 +26,7 @@ Google 日历 —(私密 ICS)→ Cloudflare 边缘 —→ 你的地址 —→ iP
 
 ## 部署（Pages 路线，推荐）
 
-需要 [wrangler](https://developers.cloudflare.com/workers/wrangler/install-and-update/) 和 Cloudflare 账号，三步：
+需要 [wrangler](https://developers.cloudflare.com/workers/wrangler/install-and-update/) 和 Cloudflare 账号（wrangler 4 要求 **Node.js ≥ 20**，用系统自带的旧版 node 会在安装或运行时报错），三步：
 
 ```bash
 # 1. 建项目（只此一次）
@@ -70,6 +70,11 @@ https://gcal-ics-proxy.pages.dev/<PATH_KEY>
 2. 选择 **添加已订阅日历**
 3. 粘贴 `https://gcal-ics-proxy.pages.dev/<PATH_KEY>`
 4. 完成。**不要挂代理**——挂了就说明没走通边缘代理，失去意义。
+
+订阅成功后，两点预期要提前知道，否则容易误以为坏了：
+
+- **只读**。订阅日历无法回写，手机上改不了 Google 的日程，它只是把事件镜像过来看。
+- **iOS 对订阅日历是懒拉取，没有推送**。Google 侧改了日程，手机上可能几分钟到几小时才出现——这是 iOS 的行为，不是同步失败。想立刻看到，进日历 App 下拉刷新即可强制拉取。
 
 ## 安全设计
 
